@@ -55,6 +55,7 @@ print(optimal_parameters)
 ## ----train_mark_model---------------------------------------------------------
 # Load the example raster files
 raster_paths <- list.files(system.file("extdata", package = "ldmppr"), pattern = "\\.tif$", full.names = TRUE)
+raster_paths <- raster_paths[!grepl("_med\\.tif$", raster_paths)]
 rasters <- lapply(raster_paths, terra::rast)
 scaled_rasters <- scale_rasters(rasters)
 
@@ -66,6 +67,7 @@ model_training_data <- small_example_data %>%
 example_mark_model <- train_mark_model(
   data = model_training_data,
   raster_list = scaled_rasters,
+  scaled_rasters = TRUE,
   model_type = "xgboost",
   xy_bounds = c(0, 25, 0, 25),
   parallel = FALSE,
@@ -103,6 +105,7 @@ example_model_fit <- check_model_fit(
   sc_params = estimated_parameters,
   anchor_point = M_n,
   raster_list = scaled_rasters,
+  scaled_rasters = TRUE,
   mark_model = example_mark_model,
   xy_bounds = c(0, 25, 0, 25),
   include_comp_inds = TRUE,
@@ -126,6 +129,7 @@ simulated_mpp <- simulate_mpp(
   t_max = 1,
   anchor_point = M_n,
   raster_list = scaled_rasters,
+  scaled_rasters = TRUE,
   mark_model = example_mark_model,
   xy_bounds = c(0, 25, 0, 25),
   include_comp_inds = TRUE,

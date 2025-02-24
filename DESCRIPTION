@@ -2,7 +2,7 @@ Package: ldmppr
 Type: Package
 Title: Estimate and Simulate from Location Dependent Marked Point
         Processes
-Version: 1.0.3
+Version: 1.0.4
 Authors@R: c(
   person("Lane", "Drew", role = c("aut", "cre", "cph"), email = "lanetdrew@gmail.com", comment = c(ORCID = "0009-0006-5427-4092")),
   person("Andee", "Kaplan", role = "aut", comment = c(ORCID = "0000-0002-2940-889X")))
@@ -27,8 +27,8 @@ Suggests: knitr, rmarkdown
 VignetteBuilder: knitr
 Depends: R (>= 3.5.0)
 NeedsCompilation: yes
-Packaged: 2024-11-29 19:39:14 UTC; lanedrew
+Packaged: 2025-02-24 20:44:49 UTC; lanedrew
 Author: Lane Drew [aut, cre, cph] (<https://orcid.org/0009-0006-5427-4092>),
   Andee Kaplan [aut] (<https://orcid.org/0000-0002-2940-889X>)
 Repository: CRAN
-Date/Publication: 2024-12-02 12:41:19 UTC
+Date/Publication: 2025-02-24 21:00:02 UTC
