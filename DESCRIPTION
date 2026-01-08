@@ -2,7 +2,7 @@ Package: ldmppr
 Type: Package
 Title: Estimate and Simulate from Location Dependent Marked Point
         Processes
-Version: 1.0.4
+Version: 1.1.0
 Authors@R: c(
   person("Lane", "Drew", role = c("aut", "cre", "cph"), email = "lanetdrew@gmail.com", comment = c(ORCID = "0009-0006-5427-4092")),
   person("Andee", "Kaplan", role = "aut", comment = c(ORCID = "0000-0002-2940-889X")))
@@ -15,20 +15,23 @@ Description: A suite of tools for estimating, assessing model fit, simulating fr
 License: GPL (>= 3)
 Encoding: UTF-8
 LazyData: true
-Imports: Rcpp (>= 1.0.12), terra, doParallel, xgboost, ranger, parsnip,
-        dials, bundle, recipes, rsample, tune, workflows, magrittr,
-        hardhat, ggplot2, spatstat.geom, spatstat.explore, nloptr, GET,
-        progress, dplyr, future, furrr, yardstick
+Imports: stats, bundle, Rcpp (>= 1.0.12), terra, doParallel, xgboost,
+        ranger, parsnip (>= 1.4.0), dials, recipes, rsample, tune,
+        workflows, magrittr, hardhat, ggplot2, spatstat.geom,
+        spatstat.explore, nloptr, GET, progress, future, furrr,
+        foreach, yardstick
 LinkingTo: Rcpp, RcppArmadillo
 URL: https://github.com/lanedrew/ldmppr
 BugReports: https://github.com/lanedrew/ldmppr/issues
-RoxygenNote: 7.3.2
-Suggests: knitr, rmarkdown
+RoxygenNote: 7.3.3
+Suggests: knitr, rmarkdown, testthat (>= 3.0.0), dplyr
 VignetteBuilder: knitr
 Depends: R (>= 3.5.0)
+Config/testthat/edition: 3
 NeedsCompilation: yes
-Packaged: 2025-02-24 20:44:49 UTC; lanedrew
-Author: Lane Drew [aut, cre, cph] (<https://orcid.org/0009-0006-5427-4092>),
-  Andee Kaplan [aut] (<https://orcid.org/0000-0002-2940-889X>)
+Packaged: 2026-01-08 22:11:14 UTC; lanedrew
+Author: Lane Drew [aut, cre, cph] (ORCID:
+    <https://orcid.org/0009-0006-5427-4092>),
+  Andee Kaplan [aut] (ORCID: <https://orcid.org/0000-0002-2940-889X>)
 Repository: CRAN
-Date/Publication: 2025-02-24 21:00:02 UTC
+Date/Publication: 2026-01-08 23:30:07 UTC
