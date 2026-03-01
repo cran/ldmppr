@@ -32,11 +32,14 @@ NULL
 #'
 #' @export
 print.ldmppr_model_check <- function(x, ...) {
-  cat("<ldmppr_model_check>\n")
-  if (!is.null(x$settings$n_sim)) cat("  n_sim: ", x$settings$n_sim, "\n", sep = "")
-  if (!is.null(x$settings$thinning)) cat("  thinning: ", x$settings$thinning, "\n", sep = "")
-  if (!is.null(x$settings$correction)) cat("  correction: ", x$settings$correction, "\n", sep = "")
-  cat("  envelopes: ", paste(names(x$envs), collapse = ", "), "\n", sep = "")
+  p_comb <- attributes(x$combined_env)$p %||% x$combined_env$p_value %||% NA_real_
+  cat("ldmppr Model Check\n")
+  if (!is.null(x$settings$n_sim)) cat("  n_sim:            ", x$settings$n_sim, "\n", sep = "")
+  if (!is.null(x$settings$n_sim_used)) cat("  n_sim_used:       ", x$settings$n_sim_used, "\n", sep = "")
+  if (!is.null(x$settings$thinning)) cat("  thinning:         ", x$settings$thinning, "\n", sep = "")
+  if (!is.null(x$settings$edge_correction)) .cat_wrapped_field("  edge_correction:  ", x$settings$edge_correction)
+  if (!is.na(p_comb)) cat("  p_combined:       ", signif(p_comb, 6), "\n", sep = "")
+  .cat_wrapped_field("  envelopes:        ", paste(names(x$envs), collapse = ", "))
   invisible(x)
 }
 
@@ -48,11 +51,13 @@ print.ldmppr_model_check <- function(x, ...) {
 #' @export
 summary.ldmppr_model_check <- function(object, ...) {
   # GET global_envelope_test objects usually have p-values; be conservative if field names differ
-  p_comb <- object$combined_env$p %||% object$combined_env$p_value %||% NA_real_
-  per_stat <- vapply(object$envs, function(e) e$p %||% e$p_value %||% NA_real_, numeric(1))
+  p_comb <- attributes(object$combined_env)$p %||% object$combined_env$p_value %||% NA_real_
+  per_stat <- vapply(object$envs, function(e) attributes(e)$p %||% e$p_value %||% NA_real_, numeric(1))
+  alpha <- attributes(object$combined_env)$alpha %||% 0.05
 
   out <- list(
     p_combined = p_comb,
+    alpha = alpha,
     p_individual = per_stat,
     settings = object$settings
   )
@@ -67,10 +72,11 @@ summary.ldmppr_model_check <- function(object, ...) {
 #'
 #' @export
 print.summary.ldmppr_model_check <- function(x, ...) {
-  cat("<summary: ldmppr_model_check>\n")
-  cat("  combined p-value: ", x$p_combined, "\n", sep = "")
-  cat("  individual p-values:\n")
-  print(x$p_individual)
+  cat("Summary: ldmppr Model Check\n")
+  cat("  p_combined:       ", signif(x$p_combined, 6), "\n", sep = "")
+  cat("  alpha:            ", x$alpha, "\n", sep = "")
+  cat("  p_individual:\n")
+  print(signif(x$p_individual, 6))
   invisible(x)
 }
 
@@ -86,6 +92,28 @@ plot.ldmppr_model_check <- function(x,
                                     which = c("combined", "L", "F", "G", "J", "E", "V"),
                                     ...) {
   which <- match.arg(which)
-  if (which == "combined") return(plot(x$combined_env, ...))
-  plot(x$envs[[which]], ...)
+  dots <- list(...)
+
+  .render_env_plot <- function(env_obj, default_main) {
+    out <- do.call(plot, c(list(env_obj), dots))
+
+    if (inherits(out, "ggplot")) {
+      if (is.null(dots$main)) out <- out + ggplot2::labs(title = default_main)
+      print(out)
+      return(invisible(out))
+    }
+
+    if (is.null(dots$main)) {
+      try(graphics::title(main = default_main), silent = TRUE)
+    }
+    invisible(out)
+  }
+
+  if (which == "combined") {
+    return(.render_env_plot(x$combined_env, paste0("ldmppr Model Check: Combined Envelope (p = ", signif(attributes(x$combined_env)$p %||% x$combined_env$p_value %||% NA_real_, 6), ")")))
+  }
+  if (is.null(x$envs[[which]])) {
+    stop("Envelope '", which, "' is not available. Available: ", paste(names(x$envs), collapse = ", "), call. = FALSE)
+  }
+  .render_env_plot(x$envs[[which]], paste0("ldmppr Model Check: ", which, " Envelope (p = ", signif(attributes(x$envs[[which]])$p %||% x$envs[[which]]$p_value %||% NA_real_, 6), ")"))
 }

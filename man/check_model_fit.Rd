@@ -22,7 +22,13 @@ check_model_fit(
   n_sim = 2500,
   save_sims = TRUE,
   verbose = TRUE,
-  seed = 0
+  seed = 0,
+  parallel = FALSE,
+  num_cores = max(1L, parallel::detectCores() - 1L),
+  set_future_plan = FALSE,
+  mark_mode = NULL,
+  fg_correction = c("km", "rs"),
+  max_attempts = NULL
 )
 }
 \arguments{
@@ -44,11 +50,14 @@ or a numeric vector of length 8 giving the process parameters.}
 If \code{NULL}, inferred from the reference data (largest mark if available) or from
 \code{ldmppr_fit}.}
 
-\item{raster_list}{a list of raster objects used for predicting marks.}
+\item{raster_list}{(optional) list of raster objects used for mark prediction.
+Required when \code{mark_mode='mark_model'} unless rasters are stored in \code{mark_model}.}
 
-\item{scaled_rasters}{\code{TRUE} or \code{FALSE} indicating whether the rasters have already been scaled.}
+\item{scaled_rasters}{\code{TRUE} or \code{FALSE} indicating whether rasters are already scaled.
+Ignored when \code{mark_mode='time_to_size'}.}
 
-\item{mark_model}{a mark model object. May be a \code{ldmppr_mark_model} or a legacy model.}
+\item{mark_model}{a mark model object used when \code{mark_mode='mark_model'}.
+May be an \code{ldmppr_mark_model}, \code{model_fit}, or \code{workflow}.}
 
 \item{xy_bounds}{(optional) vector of bounds as \code{c(a_x, b_x, a_y, b_y)}. If \code{NULL}, will be
 inferred from \code{reference_data}'s window when \code{reference_data} is provided,
@@ -60,15 +69,35 @@ otherwise from \code{ldmppr_fit} with lower bounds assumed to be 0.}
 
 \item{edge_correction}{type of edge correction to apply (\code{"none"} or \code{"toroidal"}).}
 
-\item{competition_radius}{distance for competition radius if \code{include_comp_inds = TRUE}.}
+\item{competition_radius}{positive numeric distance used when \code{include_comp_inds = TRUE}.}
 
 \item{n_sim}{number of simulated datasets to generate.}
 
 \item{save_sims}{\code{TRUE} or \code{FALSE} indicating whether to save and return the simulated metrics.}
 
-\item{verbose}{\code{TRUE} or \code{FALSE} indicating whether to show progress of model checking.}
+\item{verbose}{\code{TRUE} or \code{FALSE} indicating whether to show progress of model checking.
+When \code{TRUE}, progress is reported via \pkg{progressr} (if available) and is compatible with parallel execution.}
 
 \item{seed}{integer seed for reproducibility.}
+
+\item{parallel}{\code{TRUE} or \code{FALSE}. If \code{TRUE}, simulations run in parallel via \pkg{furrr}/\pkg{future}.
+For small simulation sizes, parallel overhead may outweigh speed gains.}
+
+\item{num_cores}{number of workers to use when \code{parallel=TRUE}. Defaults to one fewer than detected cores.}
+
+\item{set_future_plan}{\code{TRUE} or \code{FALSE}. If \code{TRUE} and \code{parallel=TRUE},
+set a temporary \pkg{future} plan internally and restore the previous plan on exit.}
+
+\item{mark_mode}{(optional) mark generation mode: \code{"mark_model"} uses
+\code{predict()} on a mark model, while \code{"time_to_size"} maps simulated
+times back to sizes via \code{delta}. If \code{NULL}, inferred as
+\code{"mark_model"} when \code{mark_model} is provided, otherwise
+\code{"time_to_size"}.}
+
+\item{fg_correction}{correction used for F/G/J summaries (\code{"km"} or \code{"rs"}).}
+
+\item{max_attempts}{maximum number of simulation attempts when rejection occurs
+due to non-finite summaries.}
 }
 \value{
 an object of class \code{"ldmppr_model_check"}.
@@ -91,39 +120,29 @@ Also, see the \code{\link[GET:global_envelope_test]{global_envelope_test()}} fun
 \examples{
 # Note: The example below is provided for illustrative purposes and may take some time to run.
 \donttest{
-# Load the small example data
 data(small_example_data)
 
-# Load the example mark model that previously was trained on the small example data
 file_path <- system.file("extdata", "example_mark_model.rds", package = "ldmppr")
 mark_model <- load_mark_model(file_path)
 
-# Load the raster files
 raster_paths <- list.files(system.file("extdata", package = "ldmppr"),
                            pattern = "\\\\.tif$", full.names = TRUE)
 raster_paths <- raster_paths[!grepl("_med\\\\.tif$", raster_paths)]
 rasters <- lapply(raster_paths, terra::rast)
-
-# Scale the rasters
 scaled_raster_list <- scale_rasters(rasters)
 
-# Generate the reference pattern
 reference_data <- generate_mpp(
   locations = small_example_data[, c("x", "y")],
   marks = small_example_data$size,
   xy_bounds = c(0, 25, 0, 25)
 )
 
-
-# Specify the estimated parameters of the self-correcting process
-# Note: These would generally be estimated using estimate_process_parameters.
-# These values are estimates from the small_example_data generating script.
 estimated_parameters <- c(
   0.05167978, 8.20702166, 0.02199940, 2.63236890,
   1.82729512, 0.65330061, 0.86666748, 0.04681878
 )
 
-# Check the model fit
+# Keep parallel=FALSE in examples to avoid setup overhead.
 example_model_fit <- check_model_fit(
   reference_data = reference_data,
   t_min = 0,
@@ -141,7 +160,8 @@ example_model_fit <- check_model_fit(
   n_sim = 100,
   save_sims = FALSE,
   verbose = TRUE,
-  seed = 90210
+  seed = 90210,
+  parallel = FALSE
 )
 
 plot(example_model_fit, which = 'combined')

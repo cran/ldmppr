@@ -8,6 +8,16 @@
 NULL
 
 
+# -----------------------------------------------------------------------------
+# Internal helper organization
+# - Object constructors and validators for package S3 internals
+# - Data coercion and preprocessing helpers
+# - Training and prediction support helpers
+# - check_model_fit and simulation support helpers
+# - Grid/budget constructors and validators used by process estimation
+# -----------------------------------------------------------------------------
+
+
 # ---- Constructors for internal S3 classes ----
 
 # Constructor for ldmppr_model_check
@@ -77,6 +87,7 @@ new_ldmppr_mark_model <- function(engine,
                                   recipe = NULL,
                                   outcome = "size",
                                   feature_names = NULL,
+                                  rasters = NULL,
                                   info = list()) {
   structure(
     list(
@@ -86,6 +97,7 @@ new_ldmppr_mark_model <- function(engine,
       recipe = recipe,            # prepped recipe
       outcome = outcome,          # outcome column name
       feature_names = feature_names,
+      rasters = rasters,          # optional list of rasters used for prediction
       info = info,
       cache = new.env(parent = emptyenv())
     ),
@@ -101,6 +113,7 @@ new_ldmppr_fit <- function(process,
                            fit,
                            fits = NULL,
                            mapping = NULL,
+                           settings = NULL,
                            grid = NULL,
                            data_summary = NULL,
                            data = NULL,
@@ -120,6 +133,7 @@ new_ldmppr_fit <- function(process,
       fit = fit,
       fits = fits,
       mapping = mapping,
+      settings = settings,
       grid = grid,
       data = data,
       data_original = data_original,
@@ -338,6 +352,37 @@ as_mark_model <- function(mark_model) {
 }
 
 
+.cat_wrapped_field <- function(prefix, value, width = getOption("width")) {
+  txt <- if (length(value)) paste(as.character(value), collapse = ", ") else ""
+
+  width <- suppressWarnings(as.integer(width %||% 80L))
+  if (is.na(width) || width < 40L) width <- 80L
+
+  prefix_width <- nchar(prefix, type = "width")
+  wrap_width <- max(20L, width - prefix_width)
+  wrapped <- strwrap(txt, width = wrap_width)
+
+  force_wrap <- function(line, w) {
+    if (!nzchar(line) || nchar(line, type = "width") <= w) return(line)
+    starts <- seq.int(1L, nchar(line), by = w)
+    substring(line, starts, pmin(starts + w - 1L, nchar(line)))
+  }
+
+  wrapped <- unlist(lapply(wrapped, force_wrap, w = wrap_width), use.names = FALSE)
+  if (!length(wrapped)) wrapped <- ""
+
+  cat(prefix, wrapped[[1L]], "\n", sep = "")
+  if (length(wrapped) > 1L) {
+    cont_prefix <- strrep(" ", prefix_width)
+    for (line in wrapped[-1L]) {
+      cat(cont_prefix, line, "\n", sep = "")
+    }
+  }
+
+  invisible(NULL)
+}
+
+
 # ----------------------------
 # helpers for train_mark_model
 # ----------------------------
@@ -358,12 +403,17 @@ as_mark_model <- function(mark_model) {
 .coerce_training_df <- function(x, delta = NULL, xy_bounds = NULL) {
   # x can be data.frame or ldmppr_fit
   fit <- NULL
+
+  delta_provided <- !is.null(delta) && !is.na(delta)
+
   if (inherits(x, "ldmppr_fit")) {
     fit <- x
+
     # prefer data_original; fallback to NULL (we can't invent size)
     x <- fit$data_original %||% NULL
     if (is.null(x)) {
-      stop("`data` is an ldmppr_fit but `data_original` is NULL; cannot train mark model without size.", call. = FALSE)
+      stop("`data` is an ldmppr_fit but `data_original` is NULL; cannot train mark model without size.",
+           call. = FALSE)
     }
 
     # default xy_bounds from fit if not supplied
@@ -374,11 +424,19 @@ as_mark_model <- function(mark_model) {
       }
     }
 
-    # if time missing, derive from fit mapping delta (preferred) or user delta
-    if (!("time" %in% names(x)) && ("size" %in% names(x))) {
-      d_use <- fit$mapping$delta %||% delta
+    # If user supplied delta, ALWAYS overwrite time using that delta.
+    # Otherwise, only derive time if missing, using fit$mapping$delta if available.
+    if (!("size" %in% names(x))) {
+      stop("Training data must contain column `size`.", call. = FALSE)
+    }
+
+    if (delta_provided) {
+      x$time <- power_law_mapping(x$size, delta)
+    } else if (!("time" %in% names(x))) {
+      d_use <- fit$mapping$delta %||% NULL
       if (is.null(d_use) || is.na(d_use)) {
-        stop("Training data has no `time`. Provide `delta`, or ensure fit$mapping$delta is present.", call. = FALSE)
+        stop("Training data has no `time`. Provide `delta`, or ensure fit$mapping$delta is present.",
+             call. = FALSE)
       }
       x$time <- power_law_mapping(x$size, d_use)
     }
@@ -393,9 +451,11 @@ as_mark_model <- function(mark_model) {
     stop("Training data must contain columns: x, y, size (and optionally time).", call. = FALSE)
   }
 
-  if (!("time" %in% names(x))) {
-    if (is.null(delta)) stop("Training data has no `time`. Provide `delta`.", call. = FALSE)
+  # If user supplied delta, ALWAYS overwrite time, even if time exists.
+  if (delta_provided) {
     x$time <- power_law_mapping(x$size, delta)
+  } else if (!("time" %in% names(x))) {
+    stop("Training data has no `time`. Provide `delta`.", call. = FALSE)
   }
 
   list(df = x, xy_bounds = xy_bounds, fit = fit)
@@ -542,3 +602,290 @@ resolve_reference_ppp <- function(reference_data, process_fit, xy_bounds) {
 
   NULL
 }
+
+
+## ------------------------ ldmppr_budgets helpers ------------------------
+#' @rdname ldmppr-internal
+#' @keywords internal
+new_ldmppr_budgets <- function(global_options,
+                               local_budget_first_level,
+                               local_budget_refinement_levels = NULL) {
+
+  x <- list(
+    global_options = global_options %||% list(),
+    local_budget_first_level = local_budget_first_level %||% list(),
+    local_budget_refinement_levels = local_budget_refinement_levels
+  )
+  class(x) <- "ldmppr_budgets"
+  .validate_ldmppr_budgets(x)
+  x
+}
+
+#' @rdname ldmppr-internal
+#' @keywords internal
+is_ldmppr_budgets <- function(x) inherits(x, "ldmppr_budgets")
+
+#' @rdname ldmppr-internal
+#' @keywords internal
+as_ldmppr_budgets <- function(x, ...) {
+  if (is_ldmppr_budgets(x)) return(x)
+
+  # allow coercion from a plain list with the expected names
+  if (is.list(x) &&
+      all(c("global_options", "local_budget_first_level") %in% names(x))) {
+    return(new_ldmppr_budgets(
+      global_options = x$global_options %||% list(),
+      local_budget_first_level = x$local_budget_first_level %||% list(),
+      local_budget_refinement_levels = x$local_budget_refinement_levels
+    ))
+  }
+
+  stop("Cannot coerce to ldmppr_budgets. Provide an ldmppr_budgets object or a list with ",
+       "global_options and local_budget_first_level.", call. = FALSE)
+}
+
+#' @rdname ldmppr-internal
+#' @keywords internal
+.validate_ldmppr_budgets <- function(b) {
+  if (!is_ldmppr_budgets(b)) stop("Invalid ldmppr_budgets object.", call. = FALSE)
+
+  if (!is.list(b$global_options)) {
+    stop("ldmppr_budgets: global_options must be a list.", call. = FALSE)
+  }
+  if (!is.list(b$local_budget_first_level)) {
+    stop("ldmppr_budgets: local_budget_first_level must be a list.", call. = FALSE)
+  }
+  if (!is.null(b$local_budget_refinement_levels) && !is.list(b$local_budget_refinement_levels)) {
+    stop("ldmppr_budgets: local_budget_refinement_levels must be NULL or a list.", call. = FALSE)
+  }
+
+  invisible(TRUE)
+}
+
+
+## ------------------------ ldmppr_grids helpers ------------------------
+#' @rdname ldmppr-internal
+#' @keywords internal
+new_ldmppr_grids <- function(levels, upper_bounds, labels = NULL, include_endpoints = TRUE) {
+  x <- list(
+    levels = levels,
+    upper_bounds = upper_bounds,
+    labels = labels %||% rep("", length(levels)),
+    include_endpoints = isTRUE(include_endpoints)
+  )
+  class(x) <- "ldmppr_grids"
+  .validate_ldmppr_grids(x)
+  x
+}
+
+#' @rdname ldmppr-internal
+#' @keywords internal
+is_ldmppr_grids <- function(x) inherits(x, "ldmppr_grids")
+
+#' @rdname ldmppr-internal
+#' @keywords internal
+as_ldmppr_grids <- function(x, ...) {
+  if (is_ldmppr_grids(x)) return(x)
+
+  if (is.list(x) && !is.null(x$levels) && !is.null(x$upper_bounds)) {
+    return(new_ldmppr_grids(
+      levels = x$levels,
+      upper_bounds = x$upper_bounds,
+      labels = x$labels %||% NULL,
+      include_endpoints = x$include_endpoints %||% TRUE
+    ))
+  }
+
+  stop("Cannot coerce to ldmppr_grids.", call. = FALSE)
+}
+
+#' @rdname ldmppr-internal
+#' @keywords internal
+.validate_ldmppr_grids <- function(g) {
+  if (!is.list(g) || !is_ldmppr_grids(g)) stop("Invalid ldmppr_grids object.", call. = FALSE)
+
+  ub <- g$upper_bounds
+  if (is.null(ub) || length(ub) != 3L || anyNA(ub) || any(!is.finite(ub))) {
+    stop("ldmppr_grids: upper_bounds must be finite numeric length 3: c(b_t, b_x, b_y).", call. = FALSE)
+  }
+  if (ub[1] <= 0 || ub[2] <= 0 || ub[3] <= 0) {
+    stop("ldmppr_grids: upper_bounds must be positive.", call. = FALSE)
+  }
+
+  lvls <- g$levels
+  if (!is.list(lvls) || length(lvls) < 1L) {
+    stop("ldmppr_grids: must contain at least one grid level.", call. = FALSE)
+  }
+
+  for (i in seq_along(lvls)) {
+    L <- lvls[[i]]
+    if (!is.list(L) || !all(c("x", "y", "t") %in% names(L))) {
+      stop("ldmppr_grids: each level must be a list with x, y, t.", call. = FALSE)
+    }
+    for (nm in c("x", "y", "t")) {
+      v <- L[[nm]]
+      if (!is.numeric(v) || length(v) < 2L || anyNA(v) || any(!is.finite(v))) {
+        stop("ldmppr_grids: each of x, y, t must be numeric vectors (len>=2), finite, non-NA.", call. = FALSE)
+      }
+      if (is.unsorted(v, strictly = FALSE)) {
+        stop("ldmppr_grids: each of x, y, t must be non-decreasing (sorted).", call. = FALSE)
+      }
+    }
+
+    if (min(L$x) < 0 || max(L$x) > ub[2]) stop("ldmppr_grids: x grid exceeds upper_bounds.", call. = FALSE)
+    if (min(L$y) < 0 || max(L$y) > ub[3]) stop("ldmppr_grids: y grid exceeds upper_bounds.", call. = FALSE)
+    if (min(L$t) < 0 || max(L$t) > ub[1]) stop("ldmppr_grids: t grid exceeds upper_bounds.", call. = FALSE)
+  }
+
+  invisible(TRUE)
+}
+
+#' @rdname ldmppr-internal
+#' @keywords internal
+.ldmppr_make_grid_schedule <- function(upper_bounds,
+                                       levels,
+                                       labels = NULL,
+                                       include_endpoints = TRUE) {
+  if (is.null(upper_bounds) || length(upper_bounds) != 3L ||
+      anyNA(upper_bounds) || any(!is.finite(upper_bounds))) {
+    stop("upper_bounds must be finite numeric length 3: c(b_t, b_x, b_y).", call. = FALSE)
+  }
+  if (!is.list(levels) || length(levels) < 1L) {
+    stop("levels must be a non-empty list.", call. = FALSE)
+  }
+
+  mk_level <- function(level) {
+    if (is.numeric(level) && length(level) == 3L) {
+      nx <- as.integer(level[1]); ny <- as.integer(level[2]); nt <- as.integer(level[3])
+      if (anyNA(c(nx, ny, nt)) || any(c(nx, ny, nt) < 2L)) {
+        stop("Grid level counts must be >= 2.", call. = FALSE)
+      }
+      return(list(
+        x = seq(0, upper_bounds[2], length.out = nx),
+        y = seq(0, upper_bounds[3], length.out = ny),
+        t = seq(0, upper_bounds[1], length.out = nt)
+      ))
+    }
+
+    if (is.list(level) && all(c("nx", "ny", "nt") %in% names(level))) {
+      nx <- as.integer(level$nx); ny <- as.integer(level$ny); nt <- as.integer(level$nt)
+      if (anyNA(c(nx, ny, nt)) || any(c(nx, ny, nt) < 2L)) {
+        stop("Grid level nx/ny/nt must be >= 2.", call. = FALSE)
+      }
+      return(list(
+        x = seq(0, upper_bounds[2], length.out = nx),
+        y = seq(0, upper_bounds[3], length.out = ny),
+        t = seq(0, upper_bounds[1], length.out = nt)
+      ))
+    }
+
+    if (is.list(level) && all(c("x", "y", "t") %in% names(level))) {
+      return(list(
+        x = as.numeric(level$x),
+        y = as.numeric(level$y),
+        t = as.numeric(level$t)
+      ))
+    }
+
+    stop("Each grid level must be c(nx,ny,nt), list(nx,ny,nt), or list(x,y,t).", call. = FALSE)
+  }
+
+  lev_out <- lapply(levels, mk_level)
+
+  if (!is.null(labels)) {
+    if (!is.character(labels) || length(labels) != length(lev_out)) {
+      stop("labels must be NULL or a character vector with length equal to levels.", call. = FALSE)
+    }
+  }
+
+  list(
+    levels = lev_out,
+    upper_bounds = as.numeric(upper_bounds),
+    labels = labels %||% rep("", length(lev_out)),
+    include_endpoints = isTRUE(include_endpoints)
+  )
+}
+
+
+## ------------------------ infer rasters helpers ------------------------
+
+#' @rdname ldmppr-internal
+#' @keywords internal
+infer_rasters_from_mark_model <- function(mm) {
+  if (is.null(mm)) return(NULL)
+
+  # common locations people store rasters
+  candidates <- list(
+    mm$rasters
+  )
+
+  for (cand in candidates) {
+    if (is.list(cand) && length(cand) > 0) return(cand)
+  }
+
+  NULL
+}
+
+
+#' @rdname ldmppr-internal
+#' @keywords internal
+infer_scaled_flag_from_mark_model <- function(mm) {
+  if (is.null(mm)) return(NULL)
+  candidates <- list(
+    mm$info$scaled_rasters
+  )
+  for (cand in candidates) {
+    if (is.logical(cand) && length(cand) == 1L && !is.na(cand)) return(cand)
+  }
+  NULL
+}
+
+
+#' @rdname ldmppr-internal
+#' @keywords internal
+.apply_resid_bootstrap <- function(mu, rb) {
+  # mu: numeric predicted mean in transform space
+  brks <- rb$bin_breaks
+  pools <- rb$pools
+
+  # find bin for each mu
+  bin_id <- cut(mu, breaks = brks, include.lowest = TRUE, labels = FALSE)
+  # sample residual within each bin
+  eps <- numeric(length(mu))
+  for (k in seq_along(pools)) {
+    idx <- which(bin_id == k)
+    if (!length(idx)) next
+    pool <- pools[[k]]
+    if (!length(pool)) next
+    eps[idx] <- sample(pool, size = length(idx), replace = TRUE)
+  }
+  mu + eps
+}
+
+
+#' @rdname ldmppr-internal
+#' @keywords internal
+.inv_transform <- function(z, transform) {
+  switch(transform,
+         sqrt  = pmax(z, 0)^2,
+         log1p = pmax(expm1(z), 0),
+         none  = z
+  )
+}
+
+
+#' @rdname ldmppr-internal
+#' @keywords internal
+.inv_powerlaw_time_to_size <- function(t, smin, smax, delta) {
+  t <- as.numeric(t)
+  if (!is.finite(smin) || !is.finite(smax) || smax <= smin) stop("Bad smin/smax.", call. = FALSE)
+  if (!is.finite(delta) || delta <= 0) stop("delta must be > 0 for time->size inversion.", call. = FALSE)
+
+  # clamp to [0,1] for numerical safety (sim can very slightly exceed bounds)
+  t <- pmin(pmax(t, 0), 1)
+
+  smin + (smax - smin) * (1 - t)^(1 / delta)
+}
+
+
+# (retired helper prototypes removed)

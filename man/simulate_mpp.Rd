@@ -18,7 +18,10 @@ simulate_mpp(
   competition_radius = 15,
   edge_correction = "none",
   thinning = TRUE,
-  seed = NULL
+  seed = NULL,
+  mark_mode = NULL,
+  size_range = NULL,
+  delta = NULL
 )
 }
 \arguments{
@@ -26,7 +29,7 @@ simulate_mpp(
 
 \item{process_fit}{either (1) a \code{ldmppr_fit} object returned by
 \code{\link{estimate_process_parameters}}, or (2) a numeric vector of
-length 8 giving self-correcting parameters:
+length 8 giving the self-correcting process parameters:
 \eqn{(\alpha_1,\beta_1,\gamma_1,\alpha_2,\beta_2,\alpha_3,\beta_3,\gamma_3)} (alpha_1, beta_1, gamma_1, alpha_2, beta_2, alpha_3, beta_3, gamma_3).}
 
 \item{t_min}{minimum value for time.}
@@ -37,25 +40,39 @@ length 8 giving self-correcting parameters:
 If \code{NULL}, inferred from the reference data (largest mark if available) or from
 \code{process_fit$data_original} (largest size).}
 
-\item{raster_list}{a list of raster objects used for predicting marks.}
+\item{raster_list}{(optional) list of raster objects used for mark prediction.
+Required when \code{mark_mode='mark_model'} unless rasters are stored in \code{mark_model}.}
 
-\item{scaled_rasters}{\code{TRUE} or \code{FALSE} indicating whether the rasters have already been scaled.}
+\item{scaled_rasters}{\code{TRUE} or \code{FALSE} indicating whether rasters are already scaled.
+Ignored when \code{mark_mode='time_to_size'}.}
 
-\item{mark_model}{a mark model object. May be a \code{ldmppr_mark_model} or a legacy model.}
+\item{mark_model}{a mark model object used when \code{mark_mode='mark_model'}.
+May be an \code{ldmppr_mark_model}, \code{model_fit}, or \code{workflow}.}
 
-\item{xy_bounds}{(optional) vector of bounds as \code{c(a_x, b_x, a_y, b_y)}. If \code{NULL}, will be
-inferred from \code{reference_data}'s window when \code{reference_data} is provided,
-otherwise from \code{ldmppr_fit} with lower bounds assumed to be 0.}
+\item{xy_bounds}{(optional) vector of bounds as \code{c(a_x, b_x, a_y, b_y)}. If \code{NULL},
+bounds are inferred from \code{process_fit} when available.}
 
 \item{include_comp_inds}{\code{TRUE} or \code{FALSE} indicating whether to compute competition indices.}
 
-\item{competition_radius}{distance for competition radius if \code{include_comp_inds = TRUE}.}
+\item{competition_radius}{positive numeric distance used when \code{include_comp_inds = TRUE}.}
 
 \item{edge_correction}{type of edge correction to apply (\code{"none"} or \code{"toroidal"}).}
 
 \item{thinning}{\code{TRUE} or \code{FALSE} indicating whether to use the thinned simulated values.}
 
 \item{seed}{integer seed for reproducibility.}
+
+\item{mark_mode}{(optional) mark generation mode: \code{"mark_model"} uses
+\code{predict()} on a mark model, while \code{"time_to_size"} maps simulated
+times back to sizes via \code{delta}. If \code{NULL}, inferred as
+\code{"mark_model"} when \code{mark_model} is provided, otherwise
+\code{"time_to_size"}.}
+
+\item{size_range}{numeric vector \code{c(smin, smax)} used for \code{mark_mode='time_to_size'}.
+If \code{NULL}, inferred from \code{process_fit} when possible.}
+
+\item{delta}{positive scalar used for \code{mark_mode='time_to_size'}.
+If \code{NULL}, inferred from \code{process_fit} when possible.}
 }
 \value{
 an object of class \code{"ldmppr_sim"}.
@@ -98,7 +115,8 @@ example_mpp <- simulate_mpp(
   include_comp_inds = TRUE,
   competition_radius = 10,
   edge_correction = "none",
-  thinning = TRUE
+  thinning = TRUE,
+  seed = 90210
 )
 
 # Plot the realization and provide a summary

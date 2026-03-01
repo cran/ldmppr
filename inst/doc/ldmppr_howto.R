@@ -3,9 +3,9 @@ knitr::opts_chunk$set(
   collapse = TRUE,
   comment = "#>"
 )
-set.seed(90210)
 
 ## ----setup--------------------------------------------------------------------
+set.seed(90210)
 library(ldmppr)
 library(dplyr)
 
@@ -18,40 +18,56 @@ head(small_example_data)
 # Use the (x, y, size) form and let estimate_process_parameters() construct time via delta
 parameter_estimation_data <- small_example_data
 
-# Define the integration / grid values used by the likelihood approximation
-x_grid <- seq(0, 25, length.out = 20)
-y_grid <- seq(0, 25, length.out = 20)
-t_grid <- seq(0, 1,  length.out = 20)
+# Upper bounds for (t, x, y)
+ub <- c(1, 25, 25)
+
+# Define the integration / grid schedule used by the likelihood approximation
+grids <- ldmppr_grids(
+  upper_bounds = ub,
+  levels = list(
+    c(20, 20, 20)
+    )
+)
+
+# Define optimizer budgets/options for the global + local stages
+budgets <- ldmppr_budgets(
+  global_options = list(
+    maxeval = 150
+    ),
+  local_budget_first_level = list(
+    maxeval = 300,
+    xtol_rel = 1e-5
+    ),
+  local_budget_refinement_levels = list(
+    maxeval = 300,
+    xtol_rel = 1e-5
+    )
+)
 
 # Parameter initialization values: (alpha1, beta1, gamma1, alpha2, beta2, alpha3, beta3, gamma3)
 parameter_inits <- c(1.5, 8.5, 0.015, 1.5, 3.2, 0.75, 3, 0.08)
 
-# Upper bounds for (t, x, y)
-upper_bounds <- c(1, 25, 25)
-
-
 fit_sc <- estimate_process_parameters(
   data = parameter_estimation_data,
-  process = "self_correcting",
-  x_grid = x_grid,
-  y_grid = y_grid,
-  t_grid = t_grid,
-  upper_bounds = upper_bounds,
+  grids = grids,
+  budgets = budgets,
   parameter_inits = parameter_inits,
   delta = 1,
+  rescore_control = list(
+    enabled = TRUE,
+    top = 5L,
+    objective_tol = 1e-6,
+    param_tol = 0.10
+  ),
   parallel = FALSE,
-  strategy = c("global_local"),
+  strategy = "global_local",
   global_algorithm = "NLOPT_GN_CRS2_LM",
   local_algorithm = "NLOPT_LN_BOBYQA",
-  global_options = list(maxeval = 150),
-  local_options = list(maxeval = 300, xtol_rel = 1e-5, maxtime = NULL),
-  verbose = FALSE
+  verbose = TRUE
 )
-
 # Print method for ldmppr_fit objects
-print(fit_sc)
+fit_sc
 
-# Extract parameters
 estimated_parameters <- coef(fit_sc)
 estimated_parameters
 
@@ -102,14 +118,14 @@ model_check <- check_model_fit(
   t_max = 1,
   process = "self_correcting",
   process_fit = fit_sc,
-  raster_list = scaled_rasters,
-  scaled_rasters = TRUE,
   mark_model = mark_model,
   include_comp_inds = FALSE,
   thinning = TRUE,
   edge_correction = "none",
   competition_radius = 10,
-  n_sim = 100,
+  n_sim = 199,
+  mark_mode = "mark_model",
+  fg_correction = "km",
   save_sims = FALSE,
   verbose = TRUE,
   seed = 90210
@@ -125,9 +141,8 @@ simulated <- simulate_mpp(
   process_fit = fit_sc,
   t_min = 0,
   t_max = 1,
-  raster_list = scaled_rasters,
-  scaled_rasters = TRUE,
   mark_model = mark_model,
+  mark_mode = "mark_model",
   include_comp_inds = TRUE,
   competition_radius = 10,
   edge_correction = "none",

@@ -13,23 +13,24 @@ train_mark_model(
   delta = NULL,
   save_model = FALSE,
   save_path = NULL,
-  parallel = TRUE,
-  n_cores = NULL,
+  parallel = FALSE,
+  num_cores = NULL,
   include_comp_inds = FALSE,
   competition_radius = 15,
   edge_correction = "none",
   selection_metric = "rmse",
   cv_folds = 5,
   tuning_grid_size = 200,
+  seed = 0,
   verbose = TRUE
 )
 }
 \arguments{
 \item{data}{a data.frame or a \code{ldmppr_fit} object. See Description.}
 
-\item{raster_list}{a list of raster objects.}
+\item{raster_list}{list of raster objects used for mark-model training.}
 
-\item{scaled_rasters}{\code{TRUE} or \code{FALSE} indicating whether the rasters have been scaled.}
+\item{scaled_rasters}{\code{TRUE} or \code{FALSE} indicating whether rasters are already scaled.}
 
 \item{model_type}{the machine learning model type (\code{"xgboost"} or \code{"random_forest"}).}
 
@@ -43,13 +44,14 @@ If \code{data} is an \code{ldmppr_fit} and time is missing, the function will in
 
 \item{save_path}{path for saving the generated model.}
 
-\item{parallel}{\code{TRUE} or \code{FALSE} indicating whether to use parallelization in model training.}
+\item{parallel}{\code{TRUE} or \code{FALSE}. If \code{TRUE}, tuning is parallelized over resamples.
+For small datasets, parallel overhead may outweigh speed gains.}
 
-\item{n_cores}{number of cores to use in parallel model training (if \code{parallel} is \code{TRUE}).}
+\item{num_cores}{number of workers to use when \code{parallel=TRUE}. Ignored when \code{parallel=FALSE}.}
 
 \item{include_comp_inds}{\code{TRUE} or \code{FALSE} indicating whether to generate and use competition indices as covariates.}
 
-\item{competition_radius}{distance for competition radius if \code{include_comp_inds} is \code{TRUE}.}
+\item{competition_radius}{positive numeric distance used when \code{include_comp_inds = TRUE}.}
 
 \item{edge_correction}{type of edge correction to apply (\code{"none"}, \code{"toroidal"}, or \code{"truncation"}).}
 
@@ -59,6 +61,8 @@ If \code{data} is an \code{ldmppr_fit} and time is missing, the function will in
 If \code{cv_folds <= 1}, tuning is skipped and the model is fit once with default hyperparameters.}
 
 \item{tuning_grid_size}{size of the tuning grid for hyperparameter tuning.}
+
+\item{seed}{integer seed for reproducible resampling/tuning/model fitting.}
 
 \item{verbose}{\code{TRUE} or \code{FALSE} indicating whether to show progress of model training.}
 }
