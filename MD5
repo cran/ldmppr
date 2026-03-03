@@ -1,6 +1,6 @@
-41e065522e8049a752f7672f1a6e2484 *DESCRIPTION
+8b2719d37011d9c221abb0f3f4f476d6 *DESCRIPTION
 48e8f967679f5b2389f21a5697578123 *NAMESPACE
-93daba9a40ac6a9aa67bd2f4f56a95d5 *NEWS.md
+57adeed50cb50e36434bf5101e628230 *NEWS.md
 b6dbfb60deafd3d74be7eb817aa8dcc0 *R/RcppExports.R
 94a1b9df0d3b70586bc73726b521413a *R/calc_toroidal_dist.R
 3f8cb91d8c3d90ca420ee9b7f720177b *R/check_model_fit.R
@@ -36,7 +36,7 @@ d7c41700ca1853ee60d1bde2251820f2 *data/medium_example_data.rda
 f0c04b27298bf48ef547402cb5c8a9b7 *data/small_example_data.rda
 b5fbeccb82901b652db80ea637a36c3d *inst/doc/ldmppr_howto.R
 2f4d0b651ff928ecee5d83245a4c41f3 *inst/doc/ldmppr_howto.Rmd
-06a1ee77bc5e017b506b553a44bf072b *inst/doc/ldmppr_howto.html
+687a686a3b5f0cabe3637427732af425 *inst/doc/ldmppr_howto.html
 ab3b721a4625b8c3f17ff58f458a2976 *inst/extdata/Snodgrass_DEM_1m.tif
 87a3366e0c0ee005abd23bcbc060ed14 *inst/extdata/Snodgrass_DEM_1m_med.tif
 52cc8a4c1a388d07e6308bca19a34a57 *inst/extdata/Snodgrass_aspect_southness_1m.tif
@@ -96,7 +96,7 @@ f8c3c9e6c351e4b7c307ac400873fe57 *man/vec_dist.Rd
 923ea7172bd05c6523284e898c090b5f *src/Makevars
 923ea7172bd05c6523284e898c090b5f *src/Makevars.win
 364d5d97d0f65724d23a5796f61f39d5 *src/RcppExports.cpp
-f7a11fa89ff4a376dd7d5d72b1b1d684 *src/self_correcting_model.cpp
+9e3b639a55dd10f717fbe708b689d8b9 *src/self_correcting_model.cpp
 82a295513ef9347d752b86e2f0f93df1 *tests/testthat.R
 745f2ade9baf395e29b3964a8dad5848 *tests/testthat/test-likelihood_parity.R
 943dd66941b3d2f2e54b0ea3c8b4a416 *tests/testthat/test-mark_model_io.R
